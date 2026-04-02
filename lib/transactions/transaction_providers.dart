@@ -196,6 +196,13 @@ final txNotifierForWalletProvider = ChangeNotifierProvider.autoDispose
     if (next.asData?.value case final tx?) {
       log.d('New wallet tx: $tx');
       notifier.addWalletTx(tx);
+
+      // Some nodes don't reliably emit `notifyUtxosChanged` for mempool/chain
+      // events, so also trigger an explicit balance refresh when we know a
+      // wallet-related tx exists.
+      final balanceNotifier = ref.read(balanceNotifierProvider);
+      final addresses = ref.read(allAddressesProvider);
+      unawaited(balanceNotifier.refresh(addresses));
     }
   });
 
@@ -209,6 +216,12 @@ final txNotifierForWalletProvider = ChangeNotifierProvider.autoDispose
         acceptingBlockHash: ids.acceptingBlockHash,
         client: client,
       );
+
+      // Accepted tx ids imply the UTXO set has changed; refresh balances even
+      // if the utxos-changed stream didn't fire.
+      final balanceNotifier = ref.read(balanceNotifierProvider);
+      final addresses = ref.read(allAddressesProvider);
+      unawaited(balanceNotifier.refresh(addresses));
     }
   });
 
