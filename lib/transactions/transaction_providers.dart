@@ -17,15 +17,33 @@ final _newTransactionProvider = StreamProvider.autoDispose((ref) {
 
   final newBlock = client.notifyBlockAdded();
 
-  return newBlock.expand(
-    (message) => message.block.transactions.map((rpcTx) {
+  return newBlock.asyncExpand((message) async* {
+    final isChainBlock = message.block.verboseData.isChainBlock;
+    var block = message.block;
+
+    // Some nodes send header-only blocks (no transactions) over
+    // notifyBlockAdded. Fetch the full block before emitting txs.
+    final headerOnly = block.verboseData.isHeaderOnly;
+    if ((headerOnly || block.transactions.isEmpty) &&
+        block.verboseData.hash.isNotEmpty) {
+      try {
+        block = await client.getBlockByHash(
+          block.verboseData.hash,
+          includeTransactions: true,
+        );
+      } catch (_) {
+        // Fall back to whatever we got in the notification.
+      }
+    }
+
+    for (final rpcTx in block.transactions) {
       var apiTx = ApiTransaction.fromRpc(rpcTx);
-      if (message.block.verboseData.isChainBlock) {
+      if (isChainBlock) {
         apiTx = apiTx.copyWith(isAccepted: true);
       }
-      return apiTx;
-    }),
-  );
+      yield apiTx;
+    }
+  });
 });
 
 // New transactions associated with this wallet

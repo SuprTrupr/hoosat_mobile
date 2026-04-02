@@ -203,15 +203,21 @@ class HoosatClient {
 
     final response = _streamRequest(message);
 
-    final result = response.map((event) {
-      final error = event.notifyBlockAddedResponse.error;
-      if (error.message.isNotEmpty) {
-        throw RpcException(error);
-      }
-      return event.blockAddedNotification;
-    }).skip(1);
+    return () async* {
+      await for (final event in response) {
+        if (event.hasNotifyBlockAddedResponse()) {
+          final error = event.notifyBlockAddedResponse.error;
+          if (error.message.isNotEmpty) {
+            throw RpcException(error);
+          }
+          continue;
+        }
 
-    return result;
+        if (event.hasBlockAddedNotification()) {
+          yield event.blockAddedNotification;
+        }
+      }
+    }();
   }
 
   // Submit Transaction
