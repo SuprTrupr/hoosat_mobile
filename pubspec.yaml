@@ -2,7 +2,7 @@ name: hoosat_mobile
 description: The Ultimate Self-Custodial Wallet for the Hoosat Network.
 publish_to: "none"
 
-version: 1.0.7+18
+version: 1.0.8+19
 environment:
   sdk: ">=3.0.0 <4.0.0"
   flutter: ">=3.19.0"
