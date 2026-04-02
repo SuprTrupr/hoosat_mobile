@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:logger/logger.dart';
 
@@ -27,6 +28,146 @@ class TransactionNotifier extends SafeChangeNotifier {
   bool get firstLoad => _firstLoad;
 
   TransactionNotifier({required this.cache});
+
+  Future<void> ensureInitialLoad({int count = 20}) async {
+    if (disposed) {
+      return;
+    }
+    if (loadedTxs.isEmpty && hasMore && !_loading) {
+      await loadMore(count);
+    }
+  }
+
+  /// Fetch tx ids for wallet addresses and store them in the index.
+  ///
+  /// This is designed to be called when a wallet is opened so the history list
+  /// can page in transactions even if balances didn't change.
+  Future<void> syncHistoryForAddresses(
+    Iterable<String> addresses, {
+    int warmPageSize = 50,
+    int pageSize = 500,
+    int concurrency = 8,
+    int retryCount = 3,
+    Duration retryDelay = const Duration(seconds: 1),
+  }) async {
+    final addrList = addresses.where((a) => a.isNotEmpty).toList(growable: false);
+    if (addrList.isEmpty || disposed) {
+      return;
+    }
+
+    final beforeCount = cache.txCount;
+    log.d(
+      'History sync: start (addresses=${addrList.length}, beforeTxCount=$beforeCount)',
+    );
+
+    // 1) Warm-start: only fetch the first page for addresses that have any txs.
+    for (final batch in addrList.slices(concurrency)) {
+      if (disposed) {
+        return;
+      }
+
+      final pages = await Future.wait(batch.map((address) async {
+        try {
+          final remoteCount = await api.getTxCountForAddress(
+            address,
+            retryCount: retryCount,
+            retryDelay: retryDelay,
+          );
+          if (remoteCount <= 0) {
+            return const <ApiTxId>[];
+          }
+
+          final limit = remoteCount < warmPageSize ? remoteCount : warmPageSize;
+          return api.getTxIdsForAddressPage(
+            address,
+            limit: limit,
+            offset: 0,
+            retryCount: retryCount,
+            retryDelay: retryDelay,
+          );
+        } catch (e, st) {
+          log.e('History sync: warm page failed for $address',
+              error: e, stackTrace: st);
+          return const <ApiTxId>[];
+        }
+      }));
+
+      final warmIds = pages.expand((e) => e).toList(growable: false);
+      if (warmIds.isNotEmpty) {
+        await cache.addWalletTxIds(warmIds);
+      }
+    }
+
+    if (disposed) {
+      return;
+    }
+
+    if (cache.txCount != beforeCount) {
+      notifyListeners();
+    }
+
+    // Kick an initial page load now that ids exist.
+    await ensureInitialLoad(count: 20);
+
+    // 2) Full sync: paginate all tx ids per address.
+    for (final address in addrList) {
+      if (disposed) {
+        return;
+      }
+
+      int remoteCount;
+      try {
+        remoteCount = await api.getTxCountForAddress(
+          address,
+          retryCount: retryCount,
+          retryDelay: retryDelay,
+        );
+      } catch (e, st) {
+        log.e('History sync: failed to get txCount for $address',
+            error: e, stackTrace: st);
+        continue;
+      }
+
+      if (remoteCount <= 0) {
+        continue;
+      }
+
+      for (var offset = 0; offset < remoteCount; offset += pageSize) {
+        if (disposed) {
+          return;
+        }
+
+        final limit = (remoteCount - offset) < pageSize
+            ? (remoteCount - offset)
+            : pageSize;
+
+        try {
+          final txPage = await api.getTxIdsForAddressPage(
+            address,
+            limit: limit,
+            offset: offset,
+            retryCount: retryCount,
+            retryDelay: retryDelay,
+          );
+          if (txPage.isEmpty) {
+            break;
+          }
+
+          final prevCount = cache.txCount;
+          await cache.addWalletTxIds(txPage);
+          if (cache.txCount != prevCount) {
+            notifyListeners();
+          }
+        } catch (e, st) {
+          log.e('History sync: page failed for $address (offset=$offset)',
+              error: e, stackTrace: st);
+          break;
+        }
+      }
+    }
+
+    log.d('History sync: done (txCount=${cache.txCount})');
+  }
 
   Future<void> updatePendingTxs(Iterable<ApiTransaction> pendingTxs) async {
     if (pendingTxs.isEmpty) {

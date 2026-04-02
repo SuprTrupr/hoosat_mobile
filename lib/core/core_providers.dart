@@ -95,11 +95,19 @@ final addressPrefixProvider = Provider((ref) {
 final _HoosatApiProvider = Provider<HoosatApi>((ref) {
   final networkId = ref.watch(networkIdProvider);
 
-  return switch (networkId) {
-    kHoosatNetworkIdMainnet =>
-      HoosatApiMainnet('https://api.network.hoosat.fi'),
-    kHoosatNetworkIdTestnet =>
-      HoosatApiMainnet('https://api.network.hoosat.fi'),
+  // Different parts of the app have historically used either "mainnet" or
+  // "hoosat-mainnet" (same for testnet). Normalize so we don't accidentally
+  // select the empty API and end up with no history.
+  final normalizedNetworkId = networkId.startsWith('hoosat-')
+      ? networkId.substring('hoosat-'.length)
+      : networkId;
+
+  return switch (normalizedNetworkId) {
+    'mainnet' => HoosatApiMainnet('https://api.network.hoosat.fi'),
+    'testnet' => HoosatApiMainnet('https://api.network.hoosat.fi'),
+    // Keep the constants working too.
+    kHoosatNetworkIdMainnet => HoosatApiMainnet('https://api.network.hoosat.fi'),
+    kHoosatNetworkIdTestnet => HoosatApiMainnet('https://api.network.hoosat.fi'),
     _ => HoosatApiEmpty(),
   };
 });

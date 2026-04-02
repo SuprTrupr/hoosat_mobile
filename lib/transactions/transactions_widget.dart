@@ -189,7 +189,7 @@ class TransactionsWidget extends ConsumerWidget {
         color: theme.primary,
         backgroundColor: theme.backgroundDark,
         onRefresh: refresh,
-        child: !txNotifier.loading && items.length == 1
+        child: !txNotifier.loading && items.length == 1 && !txNotifier.hasMore
             ? const TransactionEmptyList()
             : AutomaticAnimatedList<TxListItem>(
                 key: PageStorageKey(wallet),

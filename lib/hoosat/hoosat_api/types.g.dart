@@ -6,6 +6,22 @@ part of 'types.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+BigInt _bigIntFromJson(Object? value) {
+  if (value is BigInt) {
+    return value;
+  }
+  if (value is int) {
+    return BigInt.from(value);
+  }
+  if (value is num) {
+    return BigInt.from(value.toInt());
+  }
+  if (value is String) {
+    return BigInt.parse(value);
+  }
+  throw FormatException('Invalid BigInt value: ${value.runtimeType}');
+}
+
 _$ApiAddressBalanceImpl _$$ApiAddressBalanceImplFromJson(Map json) =>
     _$ApiAddressBalanceImpl(
       address: json['address'] as String,
@@ -46,10 +62,10 @@ Map<String, dynamic> _$$OutpointImplToJson(_$OutpointImpl instance) =>
     };
 
 _$ApiUtxoEntryImpl _$$ApiUtxoEntryImplFromJson(Map json) => _$ApiUtxoEntryImpl(
-      amount: BigInt.parse(json['amount'] as String),
+  amount: _bigIntFromJson(json['amount']),
       scriptPublicKey: ApiScriptPublicKey.fromJson(
           Map<String, dynamic>.from(json['scriptPublicKey'] as Map)),
-      blockDaaScore: BigInt.parse(json['blockDaaScore'] as String),
+  blockDaaScore: _bigIntFromJson(json['blockDaaScore']),
       isCoinbase: json['isCoinbase'] as bool? ?? false,
     );
 
@@ -118,9 +134,9 @@ _$ApiTxInputImpl _$$ApiTxInputImplFromJson(Map json) => _$ApiTxInputImpl(
       index: json['index'] as int,
       previousOutpointHash: json['previous_outpoint_hash'] as String,
       previousOutpointIndex:
-          BigInt.parse(json['previous_outpoint_index'] as String),
+      _bigIntFromJson(json['previous_outpoint_index']),
       signatureScript: json['signature_script'] as String,
-      sigOpCount: BigInt.parse(json['sig_op_count'] as String),
+    sigOpCount: _bigIntFromJson(json['sig_op_count']),
       previousOutpointAddress: json['previous_outpoint_address'] as String?,
       previousOutpointAmount: json['previous_outpoint_amount'] as int?,
     );

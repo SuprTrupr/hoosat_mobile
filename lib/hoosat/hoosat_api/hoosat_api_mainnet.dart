@@ -252,7 +252,6 @@ class HoosatApiMainnet implements HoosatApi {
     final params = [
       'limit=$limit',
       'offset=$offset',
-      'fields=transaction_id,block_time',
       'resolve_previous_outpoints=no',
     ];
     final url =
@@ -262,7 +261,9 @@ class HoosatApiMainnet implements HoosatApi {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final txs = (data as List).map((e) => ApiTxId.fromJson(e)).toList();
+        final txs = (data as List)
+            .map((e) => ApiTxId.fromJson(e as Map<String, dynamic>))
+            .toList();
         return txs;
       } else {
         throw Exception('Failed to get tx ids');

@@ -47,6 +47,22 @@ class HoosatApiService {
     return txIds;
   }
 
+  Future<List<ApiTxId>> getTxIdsForAddressPage(
+    String address, {
+    required int limit,
+    required int offset,
+    int retryCount = 3,
+    Duration retryDelay = const Duration(seconds: 1),
+  }) {
+    return _api.getTxIdsForAddress(
+      address,
+      limit: limit,
+      offset: offset,
+      retryCount: retryCount,
+      retryDelay: retryDelay,
+    );
+  }
+
   Future<List<ApiTransaction>> getTxsForAddress(
     String address, {
     ResolvePreviousOutpoints resolvePreviousOutpoints =

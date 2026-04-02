@@ -163,6 +163,19 @@ final txNotifierForWalletProvider = ChangeNotifierProvider.autoDispose
   final notifier = TransactionNotifier(cache: service);
   notifier.loadMore();
 
+  // When opening a wallet, balances may not change (cached == remote), which
+  // means `lastBalanceChangesProvider` can be empty and we never discover tx ids.
+  // Seed tx ids from all wallet addresses so history can render immediately.
+  var historySyncTriggered = false;
+  ref.listen(allAddressesProvider, (_, next) {
+    if (historySyncTriggered || next.isEmpty) {
+      return;
+    }
+    historySyncTriggered = true;
+    log.d('Initial tx history sync: ${next.length} addresses');
+    unawaited(notifier.syncHistoryForAddresses(next));
+  }, fireImmediately: true);
+
   // Refresh transactions when balance changes
   ref.listen(lastBalanceChangesProvider, (_, next) {
     if (next.isEmpty) {
