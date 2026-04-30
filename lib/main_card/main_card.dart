@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_icons.dart';
 import '../app_providers.dart';
+import '../auth_sign/auth_sign_util.dart';
 import '../hoosat/types.dart';
 import '../l10n/l10n.dart';
 import '../themes/hoosat_light_theme.dart';
@@ -34,6 +35,12 @@ class MainCard extends ConsumerWidget {
       }
 
       final prefix = ref.read(addressPrefixProvider);
+      final authUri = HoosatAuthUri.tryParse(data);
+      if (authUri != null) {
+        await handleAuthSignUri(context, ref: ref, uri: authUri);
+        return;
+      }
+
       final uri = HoosatUri.tryParse(data, prefix: prefix);
 
       if (uri == null) {

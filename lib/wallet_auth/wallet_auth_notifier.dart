@@ -72,6 +72,16 @@ class WalletAuthNotifier extends StateNotifier<WalletAuth> {
     return signature;
   }
 
+  Future<Uint8List> publicKeyForPath({
+    required int typeIndex,
+    required int index,
+  }) async {
+    final seed = await _getSeed();
+    final wallet = HdWallet.forSeedHex(seed, type: state.wallet.kind.type);
+    final keyPair = wallet.deriveKeyPair(typeIndex: typeIndex, index: index);
+    return keyPair.publicKey;
+  }
+
   Future<bool> hasMnemonic() => walletVault.hasMnemonic();
 
   Future<List<String>> getMnemonic({String? password}) async {

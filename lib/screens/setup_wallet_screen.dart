@@ -12,6 +12,9 @@ import '../wallet_address/address_discovery.dart';
 import '../wallet_address/wallet_address.dart';
 import 'setup_failed_page.dart';
 
+const _importBalanceScanMaxIndex = 1000;
+const _importBalanceScanBatchSize = 100;
+
 class SetupWalletScreen extends HookConsumerWidget {
   const SetupWalletScreen({Key? key}) : super(key: key);
 
@@ -98,14 +101,19 @@ class SetupWalletScreen extends HookConsumerWidget {
 
         if (network == HoosatNetwork.mainnet && !introData.generated) {
           message.value = l10n.walletSetupAddressDiscovery;
-          discovery = await addressDiscovery.addressDiscovery(
+          // Imported wallets need balance discovery first. The legacy
+          // tx-by-tx scanner is accurate but very slow for fresh installs
+          // because it checks one derived address at a time.
+          discovery = await addressDiscovery.balanceDiscovery(
             startReceiveIndex: 0,
             startChangeIndex: 0,
+            maxIndex: _importBalanceScanMaxIndex,
+            batchSize: _importBalanceScanBatchSize,
             onProgress: (type, index) {
               final name = type == AddressType.receive
                   ? l10n.receiveIndex
                   : l10n.changeIndex;
-              details.value = '$name $index';
+              details.value = '$name $index / $_importBalanceScanMaxIndex';
               return true;
             },
           );

@@ -3,7 +3,9 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../app_providers.dart';
+import '../auth_sign/auth_sign_util.dart';
 import '../hoosat/hoosat.dart';
+import '../hoosat/types.dart';
 import '../l10n/l10n.dart';
 import '../main_card/main_card.dart';
 import '../transactions/transactions_widget.dart';
@@ -92,12 +94,20 @@ class WalletHome extends HookConsumerWidget {
         isHandling.value = true;
 
         final prefix = ref.read(addressPrefixProvider);
+        final authUri = HoosatAuthUri.tryParse(appLink);
         final uri = HoosatUri.tryParse(appLink, prefix: prefix);
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           // Delay slightly to let any transient lifecycle (inactive/resumed)
           // so the sheet isn't immediately closed.
           Future.delayed(const Duration(milliseconds: 300), () {
+            if (authUri != null) {
+              handleAuthSignUri(context, ref: ref, uri: authUri);
+              ref.read(appLinkProvider.notifier).state = null;
+              isHandling.value = false;
+              return;
+            }
+
             if (uri == null) {
               UIUtil.showSnackbar(l10n.hoosatUriInvalid, context);
               // clear link and unlock handling

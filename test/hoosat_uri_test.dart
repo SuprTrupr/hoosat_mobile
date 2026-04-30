@@ -4,7 +4,7 @@ import 'package:hoosat_mobile/hoosat/hoosat.dart';
 
 void main() {
   final address =
-      'hoosat:precqv0krj3r6uyyfa36ga7s0u9jct0v4wg8ctsfde2gkrsgwgw8jgxfzfc98';
+      'hoosat:qp4ad2eh72xc8dtjjyz4llxzq9utn6k26uyl644xxw70wskdfl85zsqj9k4vz';
 
   test('Uri with invalid address', () {
     final uriStr = 'hoosat:invalid';

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../hoosat/hoosat.dart';
 import '../wallet_address.dart';
 import 'address_discovery_types.dart';
@@ -90,6 +92,72 @@ class AddressDiscovery {
     final anyUsedAddress = balances.any((balance) => balance.balance > 0);
 
     return anyUsedAddress;
+  }
+
+  Future<DiscoveryResult> balanceDiscoveryFor({
+    required AddressType type,
+    required int startIndex,
+    int maxIndex = 1000,
+    int batchSize = 100,
+    bool Function(AddressType type, int index)? onProgress,
+  }) async {
+    final addresses = <int, WalletAddress>{};
+    final txIds = <String, ApiTxId>{};
+    int? lastUsedIndex;
+
+    int currentIndex = startIndex;
+    while (currentIndex <= maxIndex) {
+      onProgress?.call(type, currentIndex);
+
+      final count = min(batchSize, maxIndex - currentIndex + 1);
+      final batch = (await getAddresses(
+        startIndex: currentIndex,
+        type: type,
+        count: count,
+      ))
+          .toList();
+
+      final byEncodedAddress = {
+        for (final walletAddress in batch) walletAddress.encoded: walletAddress,
+      };
+
+      final balances = await client.getBalancesByAddresses(
+        batch.map((walletAddress) => walletAddress.encoded),
+      );
+
+      for (final balance in balances.where((balance) => balance.balance > 0)) {
+        final walletAddress = byEncodedAddress[balance.address];
+        if (walletAddress == null) continue;
+
+        addresses[walletAddress.index] = walletAddress.copyWith(used: true);
+        lastUsedIndex = lastUsedIndex == null
+            ? walletAddress.index
+            : max(lastUsedIndex, walletAddress.index);
+
+        try {
+          final txIdsForAddress =
+              await api.getTxIdsForAddress(walletAddress.encoded);
+          txIds.addEntries(
+            txIdsForAddress.map((txId) => MapEntry(txId.transactionId, txId)),
+          );
+        } catch (_) {
+          // Balance discovery must not fail restore just because history fetch
+          // for one funded address is temporarily unavailable.
+        }
+      }
+
+      currentIndex += count;
+    }
+
+    return DiscoveryResult(
+      addresses: addresses,
+      txIds: txIds.values.toSet(),
+      scanIndexes: ScanIndexes(
+        start: startIndex,
+        scanned: maxIndex,
+        last: lastUsedIndex,
+      ),
+    );
   }
 
   Future<DiscoveryResult> addressDiscoveryFor({
@@ -194,6 +262,32 @@ class AddressDiscovery {
       startIndex: startChangeIndex,
       maxGap: maxGap,
       maxRetries: maxRetries,
+      onProgress: onProgress,
+    );
+
+    return (receive: receiveResult, change: changeResult);
+  }
+
+  Future<WalletDiscoveryResult> balanceDiscovery({
+    required int startReceiveIndex,
+    required int startChangeIndex,
+    int maxIndex = 1000,
+    int batchSize = 100,
+    bool Function(AddressType type, int index)? onProgress,
+  }) async {
+    final receiveResult = await balanceDiscoveryFor(
+      type: AddressType.receive,
+      startIndex: startReceiveIndex,
+      maxIndex: maxIndex,
+      batchSize: batchSize,
+      onProgress: onProgress,
+    );
+
+    final changeResult = await balanceDiscoveryFor(
+      type: AddressType.change,
+      startIndex: startChangeIndex,
+      maxIndex: maxIndex,
+      batchSize: batchSize,
       onProgress: onProgress,
     );
 
